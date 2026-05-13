@@ -290,6 +290,14 @@ if ($view_offers_id) {
                                 <button type="button" id="btn-apply" class="btn btn-primary">Apply to slot</button>
                             </div>
                             <p class="editor-hint">Click and drag on the image to select a crop area. Use the buttons to rotate or resize.</p>
+                            <div id="bg-threshold-panel" class="bg-threshold-panel" style="display:none">
+                                <label>Threshold: <input type="range" id="bg-threshold" min="0" max="255" value="128" step="1"> <span id="bg-threshold-val">128</span></label>
+                                <label><input type="checkbox" id="bg-feather" checked> Soft edges</label>
+                                <div class="bg-threshold-actions">
+                                    <button type="button" id="btn-bg-accept" class="btn btn-primary btn-small">Accept</button>
+                                    <button type="button" id="btn-bg-cancel" class="btn btn-secondary btn-small">Cancel</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <?php

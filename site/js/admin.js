@@ -369,6 +369,130 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('btn-rotate-left').addEventListener('click', function () { rotateImage(-90); });
     document.getElementById('btn-rotate-right').addEventListener('click', function () { rotateImage(90); });
 
+    var bgRawImageData = null;
+    var bgOriginalImageData = null;
+    var bgPreviewActive = false;
+    var thresholdPanel = document.getElementById('bg-threshold-panel');
+    var thresholdSlider = document.getElementById('bg-threshold');
+    var thresholdVal = document.getElementById('bg-threshold-val');
+    var featherCheck = document.getElementById('bg-feather');
+
+    function bgApplyThreshold() {
+        if (!bgRawImageData || !bgOriginalImageData) return;
+        var thresh = parseInt(thresholdSlider.value);
+        var soft = featherCheck.checked;
+        var raw = bgRawImageData.data;
+        var orig = bgOriginalImageData.data;
+        var out = new ImageData(bgRawImageData.width, bgRawImageData.height);
+        var d = out.data;
+        for (var i = 0; i < raw.length; i += 4) {
+            var alpha = raw[i + 3];
+            var a;
+            if (soft) {
+                if (alpha <= thresh * 0.5) a = 0;
+                else if (alpha >= thresh) a = alpha;
+                else a = Math.round(alpha * ((alpha - thresh * 0.5) / (thresh * 0.5)));
+            } else {
+                a = alpha >= thresh ? 255 : 0;
+            }
+            d[i] = orig[i];
+            d[i + 1] = orig[i + 1];
+            d[i + 2] = orig[i + 2];
+            d[i + 3] = a;
+        }
+        var tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = out.width;
+        tmpCanvas.height = out.height;
+        tmpCanvas.getContext('2d').putImageData(out, 0, 0);
+
+        var maxW = 800;
+        var scale = out.width > maxW ? maxW / out.width : 1;
+        canvas.width = out.width * scale;
+        canvas.height = out.height * scale;
+        drawCheckerboard(ctx, canvas.width, canvas.height);
+        ctx.drawImage(tmpCanvas, 0, 0, canvas.width, canvas.height);
+    }
+
+    function drawCheckerboard(context, w, h) {
+        var size = 8;
+        for (var y = 0; y < h; y += size) {
+            for (var x = 0; x < w; x += size) {
+                context.fillStyle = ((x / size + y / size) & 1) ? '#ccc' : '#fff';
+                context.fillRect(x, y, size, size);
+            }
+        }
+    }
+
+    function bgEnterPreview() {
+        bgPreviewActive = true;
+        thresholdPanel.style.display = '';
+        document.querySelector('.editor-controls').style.display = 'none';
+    }
+
+    function bgExitPreview() {
+        bgPreviewActive = false;
+        bgRawImageData = null;
+        bgOriginalImageData = null;
+        thresholdPanel.style.display = 'none';
+        document.querySelector('.editor-controls').style.display = '';
+    }
+
+    if (thresholdSlider) {
+        thresholdSlider.addEventListener('input', function () {
+            thresholdVal.textContent = this.value;
+            bgApplyThreshold();
+        });
+    }
+    if (featherCheck) {
+        featherCheck.addEventListener('change', function () { bgApplyThreshold(); });
+    }
+
+    document.getElementById('btn-bg-accept').addEventListener('click', function () {
+        if (!bgRawImageData) return;
+        bgApplyThreshold();
+        var tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = bgRawImageData.width;
+        tmpCanvas.height = bgRawImageData.height;
+        var tmpCtx = tmpCanvas.getContext('2d');
+
+        var thresh = parseInt(thresholdSlider.value);
+        var soft = featherCheck.checked;
+        var raw = bgRawImageData.data;
+        var orig = bgOriginalImageData.data;
+        var out = tmpCtx.createImageData(tmpCanvas.width, tmpCanvas.height);
+        var d = out.data;
+        for (var i = 0; i < raw.length; i += 4) {
+            var alpha = raw[i + 3];
+            var a;
+            if (soft) {
+                if (alpha <= thresh * 0.5) a = 0;
+                else if (alpha >= thresh) a = alpha;
+                else a = Math.round(alpha * ((alpha - thresh * 0.5) / (thresh * 0.5)));
+            } else {
+                a = alpha >= thresh ? 255 : 0;
+            }
+            d[i] = orig[i];
+            d[i + 1] = orig[i + 1];
+            d[i + 2] = orig[i + 2];
+            d[i + 3] = a;
+        }
+        tmpCtx.putImageData(out, 0, 0);
+
+        var img = new Image();
+        img.onload = function () {
+            currentImage = img;
+            editorDirty = true;
+            bgExitPreview();
+            drawImage(img);
+        };
+        img.src = tmpCanvas.toDataURL('image/png');
+    });
+
+    document.getElementById('btn-bg-cancel').addEventListener('click', function () {
+        bgExitPreview();
+        if (currentImage) drawImage(currentImage);
+    });
+
     document.getElementById('btn-remove-bg').addEventListener('click', async function () {
         if (!currentImage) return;
         var btn = this;
@@ -379,11 +503,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm'
             );
             btn.textContent = 'Processing...';
-            var tmpCanvas = document.createElement('canvas');
-            tmpCanvas.width = currentImage.width;
-            tmpCanvas.height = currentImage.height;
-            tmpCanvas.getContext('2d').drawImage(currentImage, 0, 0);
-            var blob = await new Promise(function (r) { tmpCanvas.toBlob(r, 'image/png'); });
+            var srcCanvas = document.createElement('canvas');
+            srcCanvas.width = currentImage.width;
+            srcCanvas.height = currentImage.height;
+            var srcCtx = srcCanvas.getContext('2d');
+            srcCtx.drawImage(currentImage, 0, 0);
+            bgOriginalImageData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+
+            var blob = await new Promise(function (r) { srcCanvas.toBlob(r, 'image/png'); });
             var resultBlob = await removeBackground(blob, {
                 model: 'isnet_quint8',
                 output: { format: 'image/png' },
@@ -394,14 +521,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
             var url = URL.createObjectURL(resultBlob);
-            var img = new Image();
-            img.onload = function () {
-                currentImage = img;
-                drawImage(img);
-                editorDirty = true;
+            var rawImg = new Image();
+            rawImg.onload = function () {
+                var rawCanvas = document.createElement('canvas');
+                rawCanvas.width = rawImg.width;
+                rawCanvas.height = rawImg.height;
+                var rawCtx = rawCanvas.getContext('2d');
+                rawCtx.drawImage(rawImg, 0, 0);
+                bgRawImageData = rawCtx.getImageData(0, 0, rawCanvas.width, rawCanvas.height);
                 URL.revokeObjectURL(url);
+
+                thresholdSlider.value = 128;
+                thresholdVal.textContent = '128';
+                featherCheck.checked = true;
+                bgEnterPreview();
+                bgApplyThreshold();
             };
-            img.src = url;
+            rawImg.src = url;
         } catch (e) {
             console.error('Background removal failed:', e);
             alert('Background removal failed: ' + e.message);

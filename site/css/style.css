@@ -875,6 +875,38 @@ footer {
     font-weight: bold;
 }
 
+.bg-threshold-panel {
+    margin-top: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+}
+.bg-threshold-panel label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+.bg-threshold-panel input[type="range"] {
+    width: 160px;
+}
+.bg-threshold-panel #bg-threshold-val {
+    min-width: 2em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.bg-threshold-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
 .privacy-policy { max-width: 700px; line-height: 1.7; }
 .privacy-policy h2 { margin-bottom: 0.5rem; }
 .privacy-policy h3 { margin: 1.5rem 0 0.5rem; font-weight: 600; }
