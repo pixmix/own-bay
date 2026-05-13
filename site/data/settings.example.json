@@ -1,0 +1,12 @@
+{
+    "site_title": "2nd Hand",
+    "site_tagline": "Electronics, Tools, Home & Garage",
+    "owner_name": "",
+    "notification_email": "",
+    "smtp_host": "",
+    "smtp_port": 587,
+    "smtp_user": "",
+    "smtp_pass": "",
+    "smtp_encryption": "tls",
+    "smtp_from": "noreply@example.com"
+}

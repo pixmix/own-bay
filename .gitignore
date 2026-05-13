@@ -1,0 +1,25 @@
+# Data files (contain user content and credentials)
+site/data/items.json
+site/data/offers.json
+site/data/settings.json
+
+# Uploaded images
+site/uploads/*
+!site/uploads/.gitkeep
+
+# Built deployment packages
+2h-deploy.sh
+2h-deploy.tar.gz
+
+# Source photos
+photos/
+*.zip
+
+# Claude Code
+.claude/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

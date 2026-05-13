@@ -1,0 +1,10 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8082:80"
+    volumes:
+      - ./site:/var/www/html
+    environment:
+      - APACHE_RUN_USER=www-data
+      - APACHE_RUN_GROUP=www-data

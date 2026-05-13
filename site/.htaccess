@@ -1,0 +1,4 @@
+RewriteEngine On
+
+# Deny access to data directory
+RewriteRule ^data/ - [F,L]
