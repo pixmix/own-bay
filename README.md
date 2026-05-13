@@ -28,7 +28,7 @@ A self-hosted marketplace for selling second-hand items. No database required â€
 ### Local Development with Docker
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/own-bay.git
+git clone https://github.com/pixmix/own-bay.git
 cd own-bay
 docker compose up -d
 ```
