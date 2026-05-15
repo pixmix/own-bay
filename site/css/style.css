@@ -776,7 +776,22 @@ footer {
     flex-wrap: wrap;
     gap: 6px;
     margin-top: 0.6rem;
+    max-height: 4.2em;
+    overflow: hidden;
+    position: relative;
 }
+.tag-filters.expanded { max-height: none; }
+.tag-expand {
+    padding: 0.25rem 0.6rem;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    font-size: 0.8rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-family: var(--font);
+}
+.tag-expand:hover { border-color: var(--accent); color: var(--text); }
 .tag-pill {
     padding: 0.25rem 0.6rem;
     border: 1px solid var(--border);
@@ -978,6 +993,23 @@ footer {
 .privacy-policy ul { margin: 0.5rem 0 1rem 1.5rem; }
 .privacy-policy li { margin-bottom: 0.4rem; }
 .privacy-updated { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem; }
+
+/* Markdown tables */
+.md-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.75rem 0;
+    font-size: 0.9rem;
+}
+.md-table th, .md-table td {
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.6rem;
+}
+.md-table th {
+    background: var(--bg);
+    font-weight: 600;
+}
+.md-table tr:nth-child(even) { background: #fafafa; }
 
 /* Tag editor */
 .tag-editor {

@@ -390,7 +390,7 @@ function get_all_tags_from_items(array $items): array {
             $tags[$tag] = ($tags[$tag] ?? 0) + 1;
         }
     }
-    ksort($tags);
+    arsort($tags);
     return $tags;
 }
 
@@ -504,6 +504,36 @@ function log_login_attempt(string $ip, string $email, bool $success): void {
 
 function parse_markdown(string $text): string {
     $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+
+    // Tables — extract before paragraph wrapping
+    $text = preg_replace_callback('/^(\|.+\|)\n(\|[\s:|-]+\|)\n((?:\|.+\|\n?)+)/m', function($m) {
+        $headers = array_map('trim', array_values(array_filter(explode('|', $m[1]), 'strlen')));
+        $aligns = array_map('trim', array_values(array_filter(explode('|', $m[2]), 'strlen')));
+        $align = [];
+        foreach ($aligns as $col) {
+            if (str_starts_with($col, ':') && str_ends_with($col, ':')) $align[] = 'center';
+            elseif (str_ends_with($col, ':')) $align[] = 'right';
+            else $align[] = 'left';
+        }
+        $html = '<table class="md-table"><thead><tr>';
+        foreach ($headers as $i => $h) {
+            $a = $align[$i] ?? 'left';
+            $html .= "<th style=\"text-align:{$a}\">{$h}</th>";
+        }
+        $html .= '</tr></thead><tbody>';
+        foreach (explode("\n", trim($m[3])) as $row) {
+            $cells = array_map('trim', array_values(array_filter(explode('|', $row), 'strlen')));
+            $html .= '<tr>';
+            foreach ($cells as $i => $c) {
+                $a = $align[$i] ?? 'left';
+                $html .= "<td style=\"text-align:{$a}\">{$c}</td>";
+            }
+            $html .= '</tr>';
+        }
+        $html .= '</tbody></table>';
+        return $html;
+    }, $text);
+
     $text = preg_replace('/^### (.+)$/m', '<h3>$1</h3>', $text);
     $text = preg_replace('/^## (.+)$/m', '<h2>$1</h2>', $text);
     $text = preg_replace('/^# (.+)$/m', '<h1>$1</h1>', $text);
@@ -519,6 +549,8 @@ function parse_markdown(string $text): string {
     $text = preg_replace('/(<\/h[1-3]>)\s*<\/p>/', '$1', $text);
     $text = preg_replace('/<p>\s*(<ul>)/', '$1', $text);
     $text = preg_replace('/(<\/ul>)\s*<\/p>/', '$1', $text);
+    $text = preg_replace('/<p>\s*(<table)/', '$1', $text);
+    $text = preg_replace('/(<\/table>)\s*<\/p>/', '$1', $text);
     return $text;
 }
 

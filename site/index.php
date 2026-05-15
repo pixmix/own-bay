@@ -46,6 +46,7 @@ $all_tags = get_all_tags($items);
                             <button class="tag-pill" data-tag="<?= htmlspecialchars($tag) ?>"><?= htmlspecialchars($tag) ?> <span class="tag-count"><?= $count ?></span></button>
                         <?php endforeach; ?>
                     </div>
+                    <button class="tag-expand" id="tag-expand" style="display:none">&hellip;</button>
                 <?php endif; ?>
             </div>
 
@@ -80,15 +81,18 @@ $all_tags = get_all_tags($items);
             (function() {
                 var search = document.getElementById('search-input');
                 var pills = document.querySelectorAll('.tag-pill');
+                var allBtn = document.querySelector('.tag-pill[data-tag=""]');
                 var cards = document.querySelectorAll('.item-card');
                 var empty = document.getElementById('filter-empty');
-                var activeTag = '';
+                var activeTags = [];
 
                 function filter() {
                     var q = search.value.toLowerCase().trim();
                     var visible = 0;
                     cards.forEach(function(card) {
-                        var matchTag = !activeTag || (',' + card.dataset.tags + ',').indexOf(',' + activeTag + ',') !== -1;
+                        var matchTag = !activeTags.length || activeTags.some(function(t) {
+                            return (',' + card.dataset.tags + ',').indexOf(',' + t + ',') !== -1;
+                        });
                         var matchSearch = !q || card.dataset.search.indexOf(q) !== -1;
                         var show = matchTag && matchSearch;
                         card.style.display = show ? '' : 'none';
@@ -100,11 +104,30 @@ $all_tags = get_all_tags($items);
                 search.addEventListener('input', filter);
                 pills.forEach(function(pill) {
                     pill.addEventListener('click', function() {
-                        pills.forEach(function(p) { p.classList.remove('active'); });
-                        this.classList.add('active');
-                        activeTag = this.dataset.tag;
+                        var tag = this.dataset.tag;
+                        if (!tag) {
+                            activeTags = [];
+                            pills.forEach(function(p) { p.classList.remove('active'); });
+                            allBtn.classList.add('active');
+                        } else {
+                            allBtn.classList.remove('active');
+                            var idx = activeTags.indexOf(tag);
+                            if (idx !== -1) { activeTags.splice(idx, 1); this.classList.remove('active'); }
+                            else { activeTags.push(tag); this.classList.add('active'); }
+                            if (!activeTags.length) allBtn.classList.add('active');
+                        }
                         filter();
                     });
+                });
+            })();
+            (function() {
+                var tf = document.getElementById('tag-filters');
+                var btn = document.getElementById('tag-expand');
+                if (!tf || !btn) return;
+                if (tf.scrollHeight > tf.clientHeight + 2) btn.style.display = '';
+                btn.addEventListener('click', function() {
+                    tf.classList.toggle('expanded');
+                    btn.textContent = tf.classList.contains('expanded') ? 'Less' : '…';
                 });
             })();
             </script>

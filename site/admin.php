@@ -826,6 +826,7 @@ if ($view_offers_id) {
                                     <button class="tag-pill" data-tag="<?= htmlspecialchars($tag) ?>"><?= htmlspecialchars($tag) ?> <span class="tag-count"><?= $count ?></span></button>
                                 <?php endforeach; ?>
                             </div>
+                            <button class="tag-expand" id="admin-tag-expand" style="display:none">&hellip;</button>
                         <?php endif; ?>
                     </div>
                     <div class="bulk-actions">

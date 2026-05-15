@@ -27,6 +27,30 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
+
+        // Tables
+        html = html.replace(/^(\|.+\|)\n(\|[\s:|\-]+\|)\n((?:\|.+\|\n?)+)/gm, function(m, hdr, sep, body) {
+            var ths = hdr.split('|').filter(function(s){return s.trim()});
+            var seps = sep.split('|').filter(function(s){return s.trim()});
+            var aligns = seps.map(function(s) {
+                s = s.trim();
+                if (s[0]===':' && s[s.length-1]===':') return 'center';
+                if (s[s.length-1]===':') return 'right';
+                return 'left';
+            });
+            var t = '<table class="md-table"><thead><tr>';
+            ths.forEach(function(h,i){ t += '<th style="text-align:'+(aligns[i]||'left')+'">'+h.trim()+'</th>'; });
+            t += '</tr></thead><tbody>';
+            body.trim().split('\n').forEach(function(row) {
+                var cells = row.split('|').filter(function(s){return s.trim()});
+                t += '<tr>';
+                cells.forEach(function(c,i){ t += '<td style="text-align:'+(aligns[i]||'left')+'">'+c.trim()+'</td>'; });
+                t += '</tr>';
+            });
+            t += '</tbody></table>';
+            return t;
+        });
+
         html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
         html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
         html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
@@ -42,6 +66,8 @@ document.addEventListener('DOMContentLoaded', function () {
         html = html.replace(/(<\/h[1-3]>)\s*<\/p>/g, '$1');
         html = html.replace(/<p>\s*(<ul>)/g, '$1');
         html = html.replace(/(<\/ul>)\s*<\/p>/g, '$1');
+        html = html.replace(/<p>\s*(<table)/g, '$1');
+        html = html.replace(/(<\/table>)\s*<\/p>/g, '$1');
         return html;
     }
 
@@ -52,12 +78,15 @@ document.addEventListener('DOMContentLoaded', function () {
     var adminEmpty = document.getElementById('admin-filter-empty');
 
     if (adminSearch && adminCards.length) {
-        var adminTag = '';
+        var adminActiveTags = [];
+        var adminAllBtn = document.querySelector('#admin-tag-filters .tag-pill[data-tag=""]');
         function adminFilter() {
             var q = adminSearch.value.toLowerCase().trim();
             var visible = 0;
             adminCards.forEach(function (card) {
-                var matchTag = !adminTag || (',' + card.dataset.tags + ',').indexOf(',' + adminTag + ',') !== -1;
+                var matchTag = !adminActiveTags.length || adminActiveTags.some(function(t) {
+                    return (',' + card.dataset.tags + ',').indexOf(',' + t + ',') !== -1;
+                });
                 var matchSearch = !q || card.dataset.search.indexOf(q) !== -1;
                 var show = matchTag && matchSearch;
                 card.style.display = show ? '' : 'none';
@@ -68,11 +97,31 @@ document.addEventListener('DOMContentLoaded', function () {
         adminSearch.addEventListener('input', adminFilter);
         adminPills.forEach(function (pill) {
             pill.addEventListener('click', function () {
-                adminPills.forEach(function (p) { p.classList.remove('active'); });
-                this.classList.add('active');
-                adminTag = this.dataset.tag;
+                var tag = this.dataset.tag;
+                if (!tag) {
+                    adminActiveTags = [];
+                    adminPills.forEach(function(p) { p.classList.remove('active'); });
+                    adminAllBtn.classList.add('active');
+                } else {
+                    adminAllBtn.classList.remove('active');
+                    var idx = adminActiveTags.indexOf(tag);
+                    if (idx !== -1) { adminActiveTags.splice(idx, 1); this.classList.remove('active'); }
+                    else { adminActiveTags.push(tag); this.classList.add('active'); }
+                    if (!adminActiveTags.length) adminAllBtn.classList.add('active');
+                }
                 adminFilter();
             });
+        });
+    }
+
+    // Tag filter expand/collapse
+    var atf = document.getElementById('admin-tag-filters');
+    var atb = document.getElementById('admin-tag-expand');
+    if (atf && atb) {
+        if (atf.scrollHeight > atf.clientHeight + 2) atb.style.display = '';
+        atb.addEventListener('click', function() {
+            atf.classList.toggle('expanded');
+            atb.textContent = atf.classList.contains('expanded') ? 'Less' : '…';
         });
     }
 
