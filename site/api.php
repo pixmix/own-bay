@@ -6,13 +6,279 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 switch ($action) {
 
     case 'login':
+        $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
-        if (password_verify($password, ADMIN_PASSWORD_HASH)) {
-            $_SESSION['admin'] = true;
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+        if (!check_rate_limit($ip, 900, 5, $email)) {
+            header('Location: admin.php?action=login&error=rate');
+            exit;
+        }
+
+        $user = get_user_by_email($email);
+        if ($user && $user['is_active'] && $user['confirmed_at'] && password_verify($password, $user['password_hash'])) {
+            log_login_attempt($ip, $email, true);
+            session_regenerate_id(true);
+            $_SESSION['user_id'] = $user['id'];
+
+            if (password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT)) {
+                $db = get_db();
+                $db->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+                   ->execute([password_hash($password, PASSWORD_DEFAULT), $user['id']]);
+            }
+            $db = get_db();
+            $db->prepare("UPDATE users SET last_login_at = datetime('now') WHERE id = ?")->execute([$user['id']]);
+
             header('Location: admin.php');
         } else {
+            log_login_attempt($ip, $email, false);
             header('Location: admin.php?action=login&error=1');
         }
+        exit;
+
+    case 'setup':
+        if (count_active_admins() > 0) {
+            header('Location: admin.php?action=login');
+            exit;
+        }
+        verify_csrf();
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $confirm = $_POST['password_confirm'] ?? '';
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            header('Location: admin.php?action=setup&error=email');
+            exit;
+        }
+        if (strlen($password) < 8) {
+            header('Location: admin.php?action=setup&error=short');
+            exit;
+        }
+        if ($password !== $confirm) {
+            header('Location: admin.php?action=setup&error=mismatch');
+            exit;
+        }
+
+        $db = get_db();
+        $db->prepare("INSERT INTO users (email, password_hash, is_super_admin, confirmed_at) VALUES (?, ?, 1, datetime('now'))")
+           ->execute([$email, password_hash($password, PASSWORD_DEFAULT)]);
+
+        session_regenerate_id(true);
+        $_SESSION['user_id'] = (int)$db->lastInsertId();
+
+        header('Location: admin.php');
+        exit;
+
+    case 'register':
+        verify_csrf();
+        if (!registration_open()) {
+            header('Location: admin.php?action=register&error=closed');
+            exit;
+        }
+
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $confirm = $_POST['password_confirm'] ?? '';
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+        if (!check_rate_limit($ip, 3600, 10, $email)) {
+            header('Location: admin.php?action=register&error=rate');
+            exit;
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            header('Location: admin.php?action=register&error=email');
+            exit;
+        }
+        if (strlen($password) < 8) {
+            header('Location: admin.php?action=register&error=short');
+            exit;
+        }
+        if ($password !== $confirm) {
+            header('Location: admin.php?action=register&error=mismatch');
+            exit;
+        }
+
+        $existing = get_user_by_email($email);
+        if ($existing) {
+            if ($existing['confirmed_at']) {
+                header('Location: admin.php?action=register&error=taken');
+                exit;
+            }
+            $db = get_db();
+            $db->prepare('DELETE FROM users WHERE id = ?')->execute([$existing['id']]);
+        }
+
+        $code = generate_confirmation_code();
+        $code_hash = password_hash($code, PASSWORD_DEFAULT);
+        $expires = date('Y-m-d\TH:i:s+00:00', time() + 7200);
+
+        $db = get_db();
+        $db->prepare('INSERT INTO users (email, password_hash, confirmation_code, confirmation_expires_at) VALUES (?, ?, ?, ?)')
+           ->execute([$email, password_hash($password, PASSWORD_DEFAULT), $code_hash, $expires]);
+
+        log_login_attempt($ip, $email, false);
+
+        if (!send_confirmation_email($email, $code)) {
+            $db->prepare('DELETE FROM users WHERE email = ? AND confirmed_at IS NULL')->execute([$email]);
+            header('Location: admin.php?action=register&error=smtp');
+            exit;
+        }
+
+        header('Location: admin.php?action=confirm&email=' . urlencode($email));
+        exit;
+
+    case 'confirm_registration':
+        verify_csrf();
+        $email = trim($_POST['email'] ?? '');
+        $code = trim($_POST['code'] ?? '');
+
+        $user = get_user_by_email($email);
+        if (!$user || $user['confirmed_at']) {
+            header('Location: admin.php?action=login');
+            exit;
+        }
+
+        if ($user['confirmation_expires_at'] && strtotime($user['confirmation_expires_at']) < time()) {
+            $db = get_db();
+            $db->prepare('DELETE FROM users WHERE id = ?')->execute([$user['id']]);
+            header('Location: admin.php?action=register&error=expired');
+            exit;
+        }
+
+        if (!password_verify($code, $user['confirmation_code'])) {
+            header('Location: admin.php?action=confirm&email=' . urlencode($email) . '&error=wrong');
+            exit;
+        }
+
+        $db = get_db();
+        $db->prepare("UPDATE users SET confirmed_at = datetime('now'), confirmation_code = NULL, confirmation_expires_at = NULL WHERE id = ?")
+           ->execute([$user['id']]);
+
+        session_regenerate_id(true);
+        $_SESSION['user_id'] = $user['id'];
+
+        $admin = get_super_admin();
+        if ($admin && $admin['id'] !== $user['id']) {
+            send_superadmin_notification(
+                'New user registered — ' . SITE_TITLE,
+                "A new user has registered on " . SITE_TITLE . ".\n\n"
+                . "Email: {$email}\n"
+                . "Date: " . date('Y-m-d H:i:s') . "\n\n"
+                . "Total active users: " . count_active_admins() . "\n"
+            );
+        }
+
+        header('Location: admin.php');
+        exit;
+
+    case 'resend_confirmation':
+        verify_csrf();
+        $email = trim($_POST['email'] ?? '');
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+        if (!check_rate_limit($ip, 900, 5, $email)) {
+            header('Location: admin.php?action=confirm&email=' . urlencode($email) . '&error=rate');
+            exit;
+        }
+
+        $user = get_user_by_email($email);
+        if (!$user || $user['confirmed_at']) {
+            header('Location: admin.php?action=login');
+            exit;
+        }
+
+        $code = generate_confirmation_code();
+        $code_hash = password_hash($code, PASSWORD_DEFAULT);
+        $expires = date('Y-m-d\TH:i:s+00:00', time() + 7200);
+
+        $db = get_db();
+        $db->prepare('UPDATE users SET confirmation_code = ?, confirmation_expires_at = ? WHERE id = ?')
+           ->execute([$code_hash, $expires, $user['id']]);
+
+        log_login_attempt($ip, $email, false);
+        send_confirmation_email($email, $code);
+
+        header('Location: admin.php?action=confirm&email=' . urlencode($email) . '&resent=1');
+        exit;
+
+    case 'forgot_password':
+        verify_csrf();
+        $email = trim($_POST['email'] ?? '');
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+        if (!check_rate_limit($ip, 900, 5, $email)) {
+            header('Location: admin.php?action=forgot&error=rate');
+            exit;
+        }
+
+        log_login_attempt($ip, $email, false);
+
+        $user = get_user_by_email($email);
+        if ($user && $user['confirmed_at'] && $user['is_active']) {
+            $code = generate_confirmation_code();
+            $code_hash = password_hash($code, PASSWORD_DEFAULT);
+            $expires = date('Y-m-d\TH:i:s+00:00', time() + 1800);
+
+            $db = get_db();
+            $db->prepare('UPDATE users SET reset_code = ?, reset_expires_at = ? WHERE id = ?')
+               ->execute([$code_hash, $expires, $user['id']]);
+
+            $subject = 'Password reset — ' . SITE_TITLE;
+            $body = "Your password reset code is: {$code}\n\n"
+                . "This code expires in 30 minutes.\n\n"
+                . "If you did not request this, you can safely ignore this email.\n";
+            send_email($user['email'], $subject, $body);
+        }
+
+        header('Location: admin.php?action=reset&email=' . urlencode($email) . '&sent=1');
+        exit;
+
+    case 'reset_password':
+        verify_csrf();
+        $email = trim($_POST['email'] ?? '');
+        $code = trim($_POST['code'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $confirm = $_POST['password_confirm'] ?? '';
+
+        $redir = 'admin.php?action=reset&email=' . urlencode($email);
+
+        if (strlen($password) < 8) {
+            header('Location: ' . $redir . '&error=short');
+            exit;
+        }
+        if ($password !== $confirm) {
+            header('Location: ' . $redir . '&error=mismatch');
+            exit;
+        }
+
+        $user = get_user_by_email($email);
+        if (!$user || !$user['reset_code'] || !$user['reset_expires_at']) {
+            header('Location: ' . $redir . '&error=wrong');
+            exit;
+        }
+
+        if (strtotime($user['reset_expires_at']) < time()) {
+            $db = get_db();
+            $db->prepare('UPDATE users SET reset_code = NULL, reset_expires_at = NULL WHERE id = ?')
+               ->execute([$user['id']]);
+            header('Location: ' . $redir . '&error=wrong');
+            exit;
+        }
+
+        if (!password_verify($code, $user['reset_code'])) {
+            header('Location: ' . $redir . '&error=wrong');
+            exit;
+        }
+
+        $db = get_db();
+        $db->prepare('UPDATE users SET password_hash = ?, reset_code = NULL, reset_expires_at = NULL WHERE id = ?')
+           ->execute([password_hash($password, PASSWORD_DEFAULT), $user['id']]);
+
+        session_regenerate_id(true);
+        $_SESSION['user_id'] = $user['id'];
+
+        header('Location: admin.php');
         exit;
 
     case 'logout':
@@ -49,23 +315,10 @@ switch ($action) {
             exit;
         }
 
-        $offers = load_offers();
-        $max_id = 0;
-        foreach ($offers as $o) {
-            if (is_numeric($o['id']) && intval($o['id']) > $max_id) {
-                $max_id = intval($o['id']);
-            }
-        }
-        $offer_id = $max_id + 1;
-
-        $offers[] = [
-            'id' => $offer_id,
-            'item_id' => $item_id,
-            'amount' => $amount,
-            'created_at' => date('c'),
-            'status' => 'pending',
-        ];
-        save_offers($offers);
+        $db = get_db();
+        $db->prepare('INSERT INTO offers (item_id, amount, status) VALUES (?, ?, ?)')
+           ->execute([$item_id, $amount, 'pending']);
+        $offer_id = (int)$db->lastInsertId();
 
         $_SESSION['last_offer_time'] = $now;
         $_SESSION['offer_flash'] = [
@@ -81,7 +334,9 @@ switch ($action) {
         exit;
 
     case 'save_item':
+        verify_csrf();
         require_admin();
+        $user = get_logged_in_user();
         $id = $_POST['id'] ?? '';
         $title = trim($_POST['title'] ?? '');
         $description = trim($_POST['description'] ?? '');
@@ -96,22 +351,23 @@ switch ($action) {
             exit;
         }
 
-        $items = load_items();
+        $db = get_db();
         $is_new = empty($id);
 
         if ($is_new) {
             $id = generate_id();
-            $new_item = [
-                'id' => $id,
-                'title' => $title,
-                'description' => $description,
-                'price' => $price,
-                'tags' => $tags,
-                'images' => [],
-                'image_alts' => [],
-                'created_at' => date('c'),
-                'status' => 'available',
-            ];
+        } else {
+            $existing = get_item($id);
+            if (!$existing) {
+                header('HTTP/1.1 404 Not Found');
+                echo 'Item not found.';
+                exit;
+            }
+            if ($existing['user_id'] !== $user['id']) {
+                header('HTTP/1.1 403 Forbidden');
+                echo 'Access denied.';
+                exit;
+            }
         }
 
         $slot_paths = $_POST['slot_paths'] ?? [];
@@ -120,8 +376,7 @@ switch ($action) {
 
         $old_images = [];
         if (!$is_new) {
-            $existing = get_item($id);
-            if ($existing) $old_images = get_item_images($existing);
+            $old_images = get_item_image_paths($id);
         }
 
         $count = max(count($slot_paths), count($slot_data));
@@ -150,60 +405,122 @@ switch ($action) {
         while (count($image_alts) < count($new_images)) $image_alts[] = '';
 
         if ($is_new) {
-            $new_item['images'] = $new_images;
-            $new_item['image_alts'] = $image_alts;
-            $items[] = $new_item;
+            $db->prepare('INSERT INTO items (id, user_id, title, description, price, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+               ->execute([$id, $user['id'], $title, $description, $price, 'available', date('c')]);
         } else {
-            foreach ($items as &$item) {
-                if ($item['id'] === $id) {
-                    $item['title'] = $title;
-                    $item['description'] = $description;
-                    $item['price'] = $price;
-                    $item['tags'] = $tags;
-                    $item['images'] = $new_images;
-                    $item['image_alts'] = $image_alts;
-                    unset($item['image']);
-                    break;
-                }
-            }
-            unset($item);
+            $db->prepare('UPDATE items SET title = ?, description = ?, price = ? WHERE id = ?')
+               ->execute([$title, $description, $price, $id]);
         }
 
-        save_items($items);
+        save_item_tags($id, $tags);
+        save_item_images($id, $new_images, $image_alts);
+
         header('Location: admin.php?saved=' . urlencode($id));
         exit;
 
     case 'delete_item':
+        verify_csrf();
         require_admin();
+        $user = get_logged_in_user();
         $id = $_POST['id'] ?? '';
         if (!$id) { header('HTTP/1.1 400 Bad Request'); exit; }
 
-        $items = load_items();
-        $items = array_values(array_filter($items, fn($i) => $i['id'] !== $id));
-        save_items($items);
+        $item = get_item($id);
+        if (!$item) { header('HTTP/1.1 404 Not Found'); exit; }
+        if ($item['user_id'] !== $user['id'] && !$user['is_super_admin']) {
+            header('HTTP/1.1 403 Forbidden');
+            echo 'Access denied.';
+            exit;
+        }
+
+        delete_item_files($id);
+        $db = get_db();
+        $db->prepare('DELETE FROM items WHERE id = ?')->execute([$id]);
 
         header('Location: admin.php?deleted=1');
         exit;
 
-    case 'delete_offer':
+    case 'delete_selected':
+        verify_csrf();
         require_admin();
+        $user = get_logged_in_user();
+        $ids = $_POST['ids'] ?? [];
+        if (!is_array($ids) || empty($ids)) {
+            header('Location: admin.php');
+            exit;
+        }
+
+        $db = get_db();
+        $deleted = 0;
+        foreach ($ids as $id) {
+            $item = get_item($id);
+            if (!$item) continue;
+            if ($item['user_id'] !== $user['id'] && !$user['is_super_admin']) continue;
+            delete_item_files($id);
+            $db->prepare('DELETE FROM items WHERE id = ?')->execute([$id]);
+            $deleted++;
+        }
+
+        header('Location: admin.php?deleted=' . $deleted);
+        exit;
+
+    case 'delete_offer':
+        verify_csrf();
+        require_admin();
+        $user = get_logged_in_user();
         $offer_id = $_POST['offer_id'] ?? '';
         if (!$offer_id) { header('HTTP/1.1 400 Bad Request'); exit; }
 
-        $offers = load_offers();
-        $offers = array_values(array_filter($offers, fn($o) => strval($o['id']) !== strval($offer_id)));
-        save_offers($offers);
+        $db = get_db();
+        $stmt = $db->prepare('SELECT o.*, i.user_id AS item_owner_id FROM offers o JOIN items i ON o.item_id = i.id WHERE o.id = ?');
+        $stmt->execute([$offer_id]);
+        $offer = $stmt->fetch();
+
+        if (!$offer) { header('HTTP/1.1 404 Not Found'); exit; }
+        if ($offer['item_owner_id'] !== $user['id'] && !$user['is_super_admin']) {
+            header('HTTP/1.1 403 Forbidden');
+            exit;
+        }
+
+        $db->prepare('DELETE FROM offers WHERE id = ?')->execute([$offer_id]);
 
         header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? 'admin.php'));
         exit;
 
+    case 'remove_admin':
+        verify_csrf();
+        require_super_admin();
+        $user = get_logged_in_user();
+        $target_id = (int)($_POST['user_id'] ?? 0);
+
+        if (!$target_id || $target_id === $user['id']) {
+            header('HTTP/1.1 400 Bad Request');
+            echo 'Cannot remove yourself.';
+            exit;
+        }
+
+        $target = get_user($target_id);
+        if (!$target) { header('HTTP/1.1 404 Not Found'); exit; }
+
+        $db = get_db();
+        $items = $db->prepare('SELECT id FROM items WHERE user_id = ?');
+        $items->execute([$target_id]);
+        foreach ($items->fetchAll(PDO::FETCH_COLUMN) as $item_id) {
+            delete_item_files($item_id);
+        }
+
+        $db->prepare('DELETE FROM users WHERE id = ?')->execute([$target_id]);
+
+        header('Location: admin.php?action=manage_users&removed=1');
+        exit;
+
     case 'save_settings':
-        require_admin();
+        verify_csrf();
+        require_super_admin();
         $settings = load_settings();
         $settings['site_title'] = trim($_POST['site_title'] ?? '') ?: '2nd Hand';
         $settings['site_tagline'] = trim($_POST['site_tagline'] ?? '');
         $settings['owner_name'] = trim($_POST['owner_name'] ?? '');
-        $settings['notification_email'] = trim($_POST['notification_email'] ?? '');
         $settings['smtp_host'] = trim($_POST['smtp_host'] ?? '');
         $settings['smtp_port'] = intval($_POST['smtp_port'] ?? 587);
         $settings['smtp_user'] = trim($_POST['smtp_user'] ?? '');
@@ -212,14 +529,17 @@ switch ($action) {
         }
         $settings['smtp_encryption'] = in_array($_POST['smtp_encryption'] ?? '', ['none', 'tls', 'ssl']) ? $_POST['smtp_encryption'] : 'tls';
         $settings['smtp_from'] = trim($_POST['smtp_from'] ?? '') ?: 'noreply@example.com';
+        $settings['max_admins'] = intval($_POST['max_admins'] ?? 1);
+        $settings['show_registration_link'] = isset($_POST['show_registration_link']) ? '1' : '0';
         save_settings($settings);
         header('Location: admin.php?action=settings&saved=1');
         exit;
 
     case 'test_email':
-        require_admin();
+        require_super_admin();
         $settings = load_settings();
-        if (empty($settings['notification_email']) || empty($settings['smtp_host'])) {
+        $user = get_logged_in_user();
+        if (empty($settings['smtp_host'])) {
             header('Location: admin.php?action=settings&test=no_config');
             exit;
         }
@@ -230,7 +550,7 @@ switch ($action) {
             $settings['smtp_pass'],
             $settings['smtp_encryption'],
             $settings['smtp_from'],
-            $settings['notification_email'],
+            $user['email'],
             'Test email from ' . SITE_TITLE,
             "This is a test email from your 2nd Hand site.\nIf you received this, email notifications are working correctly."
         );
@@ -239,11 +559,17 @@ switch ($action) {
 
     case 'get_offers':
         require_admin();
+        $user = get_logged_in_user();
         $item_id = $_GET['item_id'] ?? '';
         $item = get_item($item_id);
         if (!$item) {
             header('HTTP/1.1 404 Not Found');
             echo json_encode(['error' => 'Item not found']);
+            exit;
+        }
+        if ($item['user_id'] !== $user['id'] && !$user['is_super_admin']) {
+            header('HTTP/1.1 403 Forbidden');
+            echo json_encode(['error' => 'Access denied']);
             exit;
         }
         $offers = get_offers_for_item($item_id);

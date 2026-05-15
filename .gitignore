@@ -2,6 +2,10 @@
 site/data/items.json
 site/data/offers.json
 site/data/settings.json
+site/data/marketplace.db
+site/data/marketplace.db-wal
+site/data/marketplace.db-shm
+site/data/*.migrated
 
 # Uploaded images
 site/uploads/*
@@ -18,8 +22,12 @@ photos/
 # Claude Code
 .claude/
 
+# Scratch tools cache
+tools/scratch/
+
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+*.bak

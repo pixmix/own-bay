@@ -418,6 +418,7 @@ footer {
 .admin-header nav {
     display: flex;
     gap: 1rem;
+    align-items: center;
 }
 .admin-header nav a {
     color: rgba(255,255,255,0.7);
@@ -425,6 +426,33 @@ footer {
 }
 .admin-header nav a:hover {
     color: white;
+}
+.admin-user {
+    color: rgba(255,255,255,0.5);
+    font-size: 0.8rem;
+    margin-right: 0.5rem;
+}
+.privacy-disclosure {
+    background: var(--accent-light);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-decoration: underline;
+    padding: 0;
+}
+.btn-link:hover {
+    color: var(--text);
 }
 
 .admin-main {
@@ -446,6 +474,34 @@ footer {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+}
+.bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    margin-bottom: 0.5rem;
+}
+.bulk-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+.item-select {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+.item-owner {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: #f0f0f0;
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--radius);
 }
 .admin-item-card {
     display: flex;
@@ -555,6 +611,14 @@ footer {
 .badge-green {
     background: var(--success);
     color: white;
+}
+.badge-winner {
+    background: #f9a825;
+    color: #1a1a1a;
+}
+.offer-winner {
+    background: #fff8e1;
+    border-left: 3px solid #f9a825;
 }
 
 /* Image editor */
@@ -914,3 +978,29 @@ footer {
 .privacy-policy ul { margin: 0.5rem 0 1rem 1.5rem; }
 .privacy-policy li { margin-bottom: 0.4rem; }
 .privacy-updated { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem; }
+
+/* Tag autocomplete */
+.tag-suggestions {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    box-shadow: var(--shadow);
+    max-height: 160px;
+    overflow-y: auto;
+}
+.tag-suggestion {
+    padding: 0.35rem 0.6rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.tag-suggestion:hover,
+.tag-suggestion.active {
+    background: var(--accent-light);
+    color: var(--accent);
+}

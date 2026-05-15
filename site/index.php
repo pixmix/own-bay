@@ -1,10 +1,7 @@
 <?php
 require_once __DIR__ . '/config.php';
 
-$items = load_items();
-$items = array_filter($items, fn($i) => $i['status'] === 'available');
-usort($items, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
-$items = array_values($items);
+$items = get_all_available_items();
 $all_tags = get_all_tags($items);
 ?>
 <!DOCTYPE html>
@@ -118,7 +115,7 @@ $all_tags = get_all_tags($items);
 
     <footer>
         <div class="container">
-            <p><?php if (OWNER_NAME): ?>&copy; <?= date('Y') ?> <?= htmlspecialchars(OWNER_NAME) ?> &middot; <?php endif; ?><a href="privacy.php">Privacy Policy</a></p>
+            <p><?php if (OWNER_NAME): ?>&copy; <?= date('Y') ?> <?= htmlspecialchars(OWNER_NAME) ?> &middot; <?php endif; ?><a href="privacy.php">Privacy Policy</a><?php if (get_setting('show_registration_link', '0') === '1' && registration_open()): ?> &middot; <a href="admin.php?action=register">Become a seller</a><?php endif; ?></p>
             <p class="footer-credit">Design by MGZ Consulting LLC</p>
         </div>
     </footer>
