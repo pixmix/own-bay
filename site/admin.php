@@ -504,6 +504,11 @@ if ($view_offers_id) {
                         <input type="text" id="owner_name" name="owner_name" value="<?= htmlspecialchars($settings['owner_name'] ?? '') ?>" placeholder="Your Name">
                     </div>
 
+                    <div class="form-group">
+                        <label for="currency">Currency symbol</label>
+                        <input type="text" id="currency" name="currency" value="<?= htmlspecialchars($settings['currency'] ?? '€') ?>" placeholder="€" style="max-width:5rem">
+                    </div>
+
                     <h3 style="margin: 1.5rem 0 1rem; font-weight: 500;">Registration</h3>
 
                     <div class="form-group">
@@ -632,8 +637,12 @@ if ($view_offers_id) {
                     </div>
 
                     <div class="form-group" style="position:relative">
-                        <label for="tags">Tags (comma-separated)</label>
-                        <input type="text" id="tags" name="tags" autocomplete="off" value="<?= htmlspecialchars(implode(', ', get_item_tags($edit_item ?? []))) ?>" placeholder="electronics, tools, cables">
+                        <label>Tags</label>
+                        <input type="hidden" id="tags" name="tags" value="<?= htmlspecialchars(implode(', ', get_item_tags($edit_item ?? []))) ?>">
+                        <div class="tag-editor" id="tag-editor">
+                            <div class="tag-chips" id="tag-chips"></div>
+                            <input type="text" id="tag-input" autocomplete="off" placeholder="Type a tag…">
+                        </div>
                         <div id="tag-suggestions" class="tag-suggestions"></div>
                         <?php
                             $db = get_db();
@@ -642,66 +651,92 @@ if ($view_offers_id) {
                         <script>
                         (function() {
                             var allTags = <?= json_encode(array_values($all_tag_names)) ?>;
-                            var input = document.getElementById('tags');
+                            var hidden = document.getElementById('tags');
+                            var input = document.getElementById('tag-input');
+                            var chips = document.getElementById('tag-chips');
                             var box = document.getElementById('tag-suggestions');
                             var sel = -1;
+                            var tags = hidden.value.split(',').map(function(t){return t.trim()}).filter(Boolean);
 
-                            function currentTag() {
-                                var v = input.value, c = input.selectionStart || v.length;
-                                var start = v.lastIndexOf(',', c - 1) + 1;
-                                return { text: v.substring(start, c).trim().toLowerCase(), start: start, cursor: c };
-                            }
-
-                            function enteredTags() {
-                                return input.value.split(',').map(function(t) { return t.trim().toLowerCase(); }).filter(Boolean);
-                            }
-
-                            function show() {
-                                var cur = currentTag();
-                                if (cur.text.length === 0) { box.innerHTML = ''; box.style.display = 'none'; sel = -1; return; }
-                                var used = enteredTags();
-                                var matches = allTags.filter(function(t) {
-                                    return t.toLowerCase().indexOf(cur.text) === 0 && used.indexOf(t.toLowerCase()) === -1;
+                            function sync() {
+                                hidden.value = tags.join(', ');
+                                chips.innerHTML = '';
+                                tags.forEach(function(tag, i) {
+                                    var chip = document.createElement('span');
+                                    chip.className = 'tag-chip';
+                                    chip.textContent = tag;
+                                    var btn = document.createElement('button');
+                                    btn.type = 'button';
+                                    btn.className = 'tag-chip-remove';
+                                    btn.textContent = '×';
+                                    btn.onclick = function() { tags.splice(i, 1); sync(); input.focus(); };
+                                    chip.appendChild(btn);
+                                    chips.appendChild(chip);
                                 });
-                                if (matches.length === 0) { box.innerHTML = ''; box.style.display = 'none'; sel = -1; return; }
+                            }
+
+                            function addTag(text) {
+                                text = text.trim();
+                                if (!text) return;
+                                var lower = text.toLowerCase();
+                                var exists = tags.some(function(t){return t.toLowerCase()===lower});
+                                if (exists) return;
+                                tags.push(text);
+                                sync();
+                                input.value = '';
+                                closeSuggestions();
+                            }
+
+                            function closeSuggestions() { box.innerHTML=''; box.style.display='none'; sel=-1; }
+
+                            function showSuggestions() {
+                                var q = input.value.trim().toLowerCase();
+                                if (!q) { closeSuggestions(); return; }
+                                var used = tags.map(function(t){return t.toLowerCase()});
+                                var matches = allTags.filter(function(t) {
+                                    return t.toLowerCase().indexOf(q) === 0 && used.indexOf(t.toLowerCase()) === -1;
+                                });
+                                if (!matches.length) { closeSuggestions(); return; }
                                 sel = -1;
                                 box.innerHTML = matches.map(function(t, i) {
-                                    return '<div class="tag-suggestion" data-index="' + i + '">' + t + '</div>';
+                                    return '<div class="tag-suggestion" data-index="'+i+'">'+t+'</div>';
                                 }).join('');
                                 box.style.display = 'block';
                             }
 
-                            function pick(tag) {
-                                var parts = input.value.split(',');
-                                var cur = currentTag();
-                                var before = input.value.substring(0, cur.start);
-                                var after = input.value.substring(cur.cursor);
-                                var prefix = before ? before.replace(/,\s*$/, '') + ', ' : '';
-                                input.value = prefix + tag + ', ' + after.replace(/^\s*,?\s*/, '');
-                                box.innerHTML = ''; box.style.display = 'none'; sel = -1;
-                                input.focus();
-                            }
-
-                            input.addEventListener('input', show);
-                            input.addEventListener('focus', show);
-                            input.addEventListener('blur', function() {
-                                setTimeout(function() { box.innerHTML = ''; box.style.display = 'none'; }, 150);
-                            });
+                            input.addEventListener('input', showSuggestions);
+                            input.addEventListener('focus', showSuggestions);
+                            input.addEventListener('blur', function() { setTimeout(closeSuggestions, 150); });
 
                             input.addEventListener('keydown', function(e) {
                                 var items = box.querySelectorAll('.tag-suggestion');
+                                if (e.key === ',' || e.key === 'Enter') {
+                                    e.preventDefault();
+                                    if (sel >= 0 && items.length) addTag(items[sel].textContent);
+                                    else addTag(input.value);
+                                    return;
+                                }
+                                if (e.key === 'Backspace' && !input.value && tags.length) {
+                                    tags.pop(); sync(); return;
+                                }
+                                if (e.key === 'Tab' && sel >= 0 && items.length) {
+                                    e.preventDefault(); addTag(items[sel].textContent); return;
+                                }
                                 if (!items.length) return;
-                                if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel + 1, items.length - 1); }
-                                else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel - 1, 0); }
-                                else if ((e.key === 'Enter' || e.key === 'Tab') && sel >= 0) { e.preventDefault(); pick(items[sel].textContent); return; }
+                                if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel+1, items.length-1); }
+                                else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel-1, 0); }
                                 else return;
-                                items.forEach(function(el, i) { el.classList.toggle('active', i === sel); });
+                                items.forEach(function(el,i){el.classList.toggle('active',i===sel)});
                             });
 
                             box.addEventListener('mousedown', function(e) {
                                 var t = e.target.closest('.tag-suggestion');
-                                if (t) { e.preventDefault(); pick(t.textContent); }
+                                if (t) { e.preventDefault(); addTag(t.textContent); }
                             });
+
+                            document.getElementById('tag-editor').addEventListener('click', function() { input.focus(); });
+
+                            sync();
                         })();
                         </script>
                     </div>

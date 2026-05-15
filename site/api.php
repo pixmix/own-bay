@@ -521,6 +521,7 @@ switch ($action) {
         $settings['site_title'] = trim($_POST['site_title'] ?? '') ?: '2nd Hand';
         $settings['site_tagline'] = trim($_POST['site_tagline'] ?? '');
         $settings['owner_name'] = trim($_POST['owner_name'] ?? '');
+        $settings['currency'] = trim($_POST['currency'] ?? '') ?: '€';
         $settings['smtp_host'] = trim($_POST['smtp_host'] ?? '');
         $settings['smtp_port'] = intval($_POST['smtp_port'] ?? 587);
         $settings['smtp_user'] = trim($_POST['smtp_user'] ?? '');

@@ -19,6 +19,7 @@ $SETTINGS_DEFAULTS = [
     'smtp_from' => 'noreply@example.com',
     'max_admins' => '1',
     'show_registration_link' => '0',
+    'currency' => '€',
 ];
 
 // ── Database ────────────────────────────────────────────────────────
@@ -686,6 +687,6 @@ define('SITE_TITLE', $_settings['site_title']);
 define('SITE_TAGLINE', $_settings['site_tagline']);
 define('OWNER_NAME', $_settings['owner_name'] ?? '');
 define('SITE_URL', ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
-define('CURRENCY', '€');
+define('CURRENCY', $_settings['currency'] ?? '€');
 
 session_start();
