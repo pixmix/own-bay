@@ -550,7 +550,7 @@ if ($view_offers_id) {
                         </div>
                         <div class="form-group flex-1">
                             <label for="smtp_pass">SMTP Password</label>
-                            <input type="password" id="smtp_pass" name="smtp_pass" placeholder="<?= empty($settings['smtp_pass']) ? '' : '(unchanged)' ?>">
+                            <input type="text" id="smtp_pass" name="smtp_pass" autocomplete="off" placeholder="<?= empty($settings['smtp_pass']) ? '' : '(unchanged)' ?>">
                         </div>
                     </div>
 
