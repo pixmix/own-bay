@@ -125,6 +125,15 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    document.querySelectorAll('time.local-time').forEach(function (el) {
+        var d = new Date(el.getAttribute('datetime'));
+        if (!isNaN(d)) el.textContent = d.toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    });
+    document.querySelectorAll('time.local-date').forEach(function (el) {
+        var d = new Date(el.getAttribute('datetime'));
+        if (!isNaN(d)) el.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' });
+    });
+
     // Multi-image slot management
     var slotsContainer = document.getElementById('image-slots');
     var hiddenContainer = document.getElementById('slot-hidden-inputs');
@@ -640,4 +649,5 @@ document.addEventListener('DOMContentLoaded', function () {
             syncHiddenInputs();
         });
     }
+
 });

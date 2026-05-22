@@ -443,8 +443,8 @@ if ($view_offers_id) {
                             <tr>
                                 <td><?= htmlspecialchars($u['email']) ?></td>
                                 <td><?= $u['item_count'] ?></td>
-                                <td><?= $u['created_at'] ? date('Y-m-d', strtotime($u['created_at'])) : '—' ?></td>
-                                <td><?= $u['last_login_at'] ? date('Y-m-d H:i', strtotime($u['last_login_at'])) : 'never' ?></td>
+                                <td><?php if ($u['created_at']): ?><time class="local-date" datetime="<?= htmlspecialchars($u['created_at']) ?>"><?= date('Y-m-d', strtotime($u['created_at'])) ?></time><?php else: ?>—<?php endif; ?></td>
+                                <td><?php if ($u['last_login_at']): ?><time class="local-time" datetime="<?= htmlspecialchars($u['last_login_at']) ?>"><?= date('Y-m-d H:i', strtotime($u['last_login_at'])) ?></time><?php else: ?>never<?php endif; ?></td>
                                 <td><?= $u['is_super_admin'] ? 'Super-admin' : 'Admin' ?></td>
                                 <td>
                                     <?php if ($u['id'] !== $current_user['id']): ?>
@@ -599,7 +599,7 @@ if ($view_offers_id) {
                                             <span class="badge badge-green">&ge; price</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td><?= date('Y-m-d H:i', strtotime($offer['created_at'])) ?></td>
+                                    <td><time class="local-time" datetime="<?= htmlspecialchars($offer['created_at']) ?>"><?= date('Y-m-d H:i', strtotime($offer['created_at'])) ?></time></td>
                                     <td><?= htmlspecialchars($offer['status']) ?></td>
                                     <td>
                                         <form method="POST" action="api.php" class="inline-form" onsubmit="return confirm('Delete offer #<?= htmlspecialchars($offer['id']) ?>?')">
