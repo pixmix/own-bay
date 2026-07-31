@@ -41,11 +41,67 @@ function init_db(): void {
     $db = get_db();
     if (!$exists) {
         create_schema($db);
+        // A fresh database is already at the latest schema — baseline it so the
+        // migrations below are not replayed against it.
+        $db->exec('PRAGMA user_version = ' . count(schema_migrations()));
         $json_items = DATA_DIR . '/items.json';
         if (file_exists($json_items)) {
             migrate_from_json($db);
         } else {
             seed_defaults($db);
+        }
+    } else {
+        run_migrations($db);
+    }
+}
+
+// ── Schema migrations ───────────────────────────────────────────────
+//
+// create_schema() describes the CURRENT schema and only ever runs on a brand
+// new database. Existing databases (production) are brought up to it here.
+// Append a step, never reorder or remove one: the index in this list IS the
+// schema version, tracked in SQLite's `user_version`.
+
+function schema_migrations(): array {
+    return [
+        // 1 — per-item currency + the admin's last-used currency
+        function (PDO $db): void {
+            if (!column_exists($db, 'items', 'currency')) {
+                $db->exec("ALTER TABLE items ADD COLUMN currency TEXT NOT NULL DEFAULT ''");
+            }
+            if (!column_exists($db, 'users', 'last_currency')) {
+                $db->exec("ALTER TABLE users ADD COLUMN last_currency TEXT NOT NULL DEFAULT ''");
+            }
+            // Backfill existing listings from the site-wide setting. Settings
+            // are not loaded yet at this point, so read the table directly.
+            $current = $db->query("SELECT value FROM settings WHERE key = 'currency'")->fetchColumn();
+            if ($current === false || $current === '') $current = '€';
+            $stmt = $db->prepare("UPDATE items SET currency = ? WHERE currency = ''");
+            $stmt->execute([$current]);
+        },
+    ];
+}
+
+function column_exists(PDO $db, string $table, string $column): bool {
+    foreach ($db->query('PRAGMA table_info(' . $table . ')') as $col) {
+        if (strcasecmp($col['name'], $column) === 0) return true;
+    }
+    return false;
+}
+
+function run_migrations(PDO $db): void {
+    $migrations = schema_migrations();
+    $version = (int)$db->query('PRAGMA user_version')->fetchColumn();
+    for ($i = $version; $i < count($migrations); $i++) {
+        $db->beginTransaction();
+        try {
+            $migrations[$i]($db);
+            // PRAGMA does not accept bound parameters; $i is an int by construction.
+            $db->exec('PRAGMA user_version = ' . ($i + 1));
+            $db->commit();
+        } catch (Throwable $e) {
+            $db->rollBack();
+            throw $e;
         }
     }
 }
@@ -64,7 +120,8 @@ function create_schema(PDO $db): void {
             reset_code TEXT,
             reset_expires_at TEXT,
             created_at TEXT NOT NULL DEFAULT (strftime(\'%Y-%m-%dT%H:%M:%S+00:00\',\'now\')),
-            last_login_at TEXT
+            last_login_at TEXT,
+            last_currency TEXT NOT NULL DEFAULT \'\'
         );
         CREATE TABLE IF NOT EXISTS items (
             id TEXT PRIMARY KEY,
@@ -72,6 +129,7 @@ function create_schema(PDO $db): void {
             title TEXT NOT NULL,
             description TEXT NOT NULL DEFAULT \'\',
             price REAL NOT NULL,
+            currency TEXT NOT NULL DEFAULT \'\',
             status TEXT NOT NULL DEFAULT \'available\',
             created_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -416,6 +474,30 @@ function get_all_tags(array $items): array {
     return get_all_tags_from_items($items);
 }
 
+// ── Currency ────────────────────────────────────────────────────────
+//
+// Currency belongs to the item. CURRENCY (the site-wide setting) is only the
+// fallback: for listings that predate a currency, and as the default offered to
+// an admin who has not posted anything yet.
+
+function item_currency(array $item): string {
+    $currency = trim((string)($item['currency'] ?? ''));
+    return $currency !== '' ? $currency : CURRENCY;
+}
+
+// Formats a price in its item's currency. Pass $amount to format an offer
+// against that item rather than the item's own price.
+function format_price(array $item, ?float $amount = null): string {
+    return item_currency($item) . number_format($amount ?? (float)$item['price'], 2);
+}
+
+// The currency to pre-fill when this admin creates a new listing: whatever they
+// used last, else the site default.
+function default_currency_for_user(?array $user): string {
+    $last = trim((string)($user['last_currency'] ?? ''));
+    return $last !== '' ? $last : CURRENCY;
+}
+
 // ── Offers ──────────────────────────────────────────────────────────
 
 function get_offers_for_item(string $item_id): array {
@@ -588,11 +670,11 @@ function send_offer_notification(array $item, float $amount, string $buyer_email
     if (!$owner_email) return false;
 
     $above = $amount >= $item['price'] ? 'YES — at or above listed price' : 'no — below listed price';
-    $subject = "Offer #{$offer_id}: {$item['title']} — " . CURRENCY . number_format($amount, 2);
+    $subject = "Offer #{$offer_id}: {$item['title']} — " . format_price($item, $amount);
     $body = "Offer #{$offer_id} on " . SITE_TITLE . "\n\n"
         . "Item: {$item['title']}\n"
-        . "Listed price: " . CURRENCY . number_format($item['price'], 2) . "\n"
-        . "Offer: " . CURRENCY . number_format($amount, 2) . "\n"
+        . "Listed price: " . format_price($item) . "\n"
+        . "Offer: " . format_price($item, $amount) . "\n"
         . "Meets/exceeds price: {$above}\n"
         . "Buyer email: {$buyer_email}\n"
         . "Date: " . date('Y-m-d H:i:s') . "\n\n"
@@ -607,8 +689,8 @@ function send_offer_confirmation(array $item, float $amount, string $buyer_email
     $body = "Thank you for your offer on " . SITE_TITLE . ".\n\n"
         . "Offer: #{$offer_id}\n"
         . "Item: {$item['title']}\n"
-        . "Your offer: " . CURRENCY . number_format($amount, 2) . "\n"
-        . "Listed price: " . CURRENCY . number_format($item['price'], 2) . "\n\n"
+        . "Your offer: " . format_price($item, $amount) . "\n"
+        . "Listed price: " . format_price($item) . "\n\n"
         . "If your offer is selected, you will be contacted at this email address.\n"
         . "You can make additional offers at any time.\n\n"
         . "Your email address is not stored on our website — it was only\n"

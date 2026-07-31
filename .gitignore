@@ -31,3 +31,17 @@ tools/scratch/
 *.swp
 *.swo
 *.bak
+
+# Coordination onboarding scratch (disposable)
+_ONBOARDING-CURRENCY.md
+
+# Obsidian workspace (machine-specific)
+.obsidian/
+
+# Production backup sets pulled by ftp-deploy.sh
+prod-backup-*/
+
+# Operator runbook + instance-specific deploy tooling — names production
+# accounts and a co-tenant service; kept local, out of the public repo.
+Deploy SOP.md
+ftp-deploy.sh

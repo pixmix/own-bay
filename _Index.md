@@ -1,0 +1,30 @@
+# 2nd-Hand — Project Index
+
+Self-hosted second-hand marketplace. Live at **2h.mgzllc.com**, open source as
+`pixmix/own-bay` (GPL v3). PHP 8.2 + SQLite, no framework.
+
+Mesh identity: contributor **c-025** (`2nd-Hand`). Project memory (journal,
+decisions) lives outside this vault at
+`~/.claude/projects/-home-pm-dev-www-2nd-hand/memory/`.
+
+## Notes
+
+- [[Architecture]] — how the application is put together, verified against code
+- *Deploy SOP* — how a change reaches production, plus the pre-flight checks.
+  Kept out of this repo: it names production accounts and a co-tenant service on
+  the same host. Local-only note, gitignored.
+- [[Currency feature]] — open design decision: per-site → per-post currency
+
+## Source documents
+
+- `README.md` — public GitHub readme. **Stale**: still describes the pre-2026-05-14
+  JSON flat-file era ("No database required", `--with-items`/`--password` flags).
+  See [[Architecture]] for what the code actually does.
+- `LICENCE` — GNU GPL v3
+
+## Conventions
+
+- UK English throughout.
+- Machinery excluded from this vault via `.obsidian/app.json` `userIgnoreFilters`:
+  `tools/`, `.claude/`, `.git/`, `photos/`, `site/uploads/`, `site/data/`,
+  archives.

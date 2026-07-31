@@ -63,7 +63,7 @@ $all_tags = get_all_tags($items);
                         </div>
                         <div class="item-info">
                             <h2><?= htmlspecialchars($item['title']) ?></h2>
-                            <span class="price"><?= CURRENCY ?><?= number_format($item['price'], 2) ?></span>
+                            <span class="price"><?= htmlspecialchars(format_price($item)) ?></span>
                         </div>
                         <?php if ($tags): ?>
                             <div class="item-tags">

@@ -341,6 +341,7 @@ switch ($action) {
         $title = trim($_POST['title'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $price = floatval($_POST['price'] ?? 0);
+        $currency = trim($_POST['currency'] ?? '') ?: default_currency_for_user($user);
         $tags_raw = trim($_POST['tags'] ?? '');
         $tags = $tags_raw ? array_values(array_unique(array_filter(array_map('trim', explode(',', $tags_raw))))) : [];
         $slot_alts = $_POST['slot_alts'] ?? [];
@@ -405,12 +406,15 @@ switch ($action) {
         while (count($image_alts) < count($new_images)) $image_alts[] = '';
 
         if ($is_new) {
-            $db->prepare('INSERT INTO items (id, user_id, title, description, price, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-               ->execute([$id, $user['id'], $title, $description, $price, 'available', date('c')]);
+            $db->prepare('INSERT INTO items (id, user_id, title, description, price, currency, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+               ->execute([$id, $user['id'], $title, $description, $price, $currency, 'available', date('c')]);
         } else {
-            $db->prepare('UPDATE items SET title = ?, description = ?, price = ? WHERE id = ?')
-               ->execute([$title, $description, $price, $id]);
+            $db->prepare('UPDATE items SET title = ?, description = ?, price = ?, currency = ? WHERE id = ?')
+               ->execute([$title, $description, $price, $currency, $id]);
         }
+
+        // Remember this admin's currency so it pre-fills their next listing.
+        $db->prepare('UPDATE users SET last_currency = ? WHERE id = ?')->execute([$currency, $user['id']]);
 
         save_item_tags($id, $tags);
         save_item_images($id, $new_images, $image_alts);

@@ -84,7 +84,7 @@ $error = $_GET['error'] ?? '';
 
             <div class="item-detail-content">
                 <h2><?= htmlspecialchars($item['title']) ?></h2>
-                <div class="price-tag"><?= CURRENCY ?><?= number_format($item['price'], 2) ?></div>
+                <div class="price-tag"><?= htmlspecialchars(format_price($item)) ?></div>
 
                 <div class="description">
                     <?= parse_markdown($item['description']) ?>
@@ -106,7 +106,7 @@ $error = $_GET['error'] ?? '';
                         <div class="success-message">
                             <p><strong>Offer submitted!</strong></p>
                             <?php if ($offer_flash): ?>
-                                <p>Your offer of <?= CURRENCY ?><?= number_format($offer_flash['amount'], 2) ?> has been sent to the seller. A confirmation has been sent to your email.</p>
+                                <p>Your offer of <?= htmlspecialchars(format_price($item, (float)$offer_flash['amount'])) ?> has been sent to the seller. A confirmation has been sent to your email.</p>
                             <?php else: ?>
                                 <p>Your offer has been sent to the seller.</p>
                             <?php endif; ?>
@@ -119,7 +119,7 @@ $error = $_GET['error'] ?? '';
                                     <input type="email" value="<?= htmlspecialchars($offer_flash['email']) ?>" disabled>
                                 </div>
                                 <div class="form-group">
-                                    <label>Your offer (<?= CURRENCY ?>)</label>
+                                    <label>Your offer (<?= htmlspecialchars(item_currency($item)) ?>)</label>
                                     <input type="text" value="<?= number_format($offer_flash['amount'], 2) ?>" disabled>
                                 </div>
                             </div>
@@ -145,7 +145,7 @@ $error = $_GET['error'] ?? '';
                         </div>
 
                         <div class="form-group">
-                            <label for="amount">Your offer (<?= CURRENCY ?>)</label>
+                            <label for="amount">Your offer (<?= htmlspecialchars(item_currency($item)) ?>)</label>
                             <input type="number" id="amount" name="amount" required min="0.01" step="0.01" placeholder="<?= number_format($item['price'], 2) ?>">
                         </div>
 

@@ -38,7 +38,7 @@ switch ($method) {
         mcp_result($id, ['tools' => [
             [
                 'name' => 'list_items',
-                'description' => 'List all available items for sale. Returns title, price, tags, and item ID for each.',
+                'description' => 'List all available items for sale. Returns title, price, currency, tags, and item ID for each. Each item carries its own currency — do not assume a single site-wide one.',
                 'inputSchema' => [
                     'type' => 'object',
                     'properties' => [
@@ -72,14 +72,14 @@ switch ($method) {
                     'properties' => [
                         'item_id' => ['type' => 'string', 'description' => 'The item ID'],
                         'email' => ['type' => 'string', 'description' => 'Buyer email address'],
-                        'amount' => ['type' => 'number', 'description' => 'Offer amount in ' . CURRENCY],
+                        'amount' => ['type' => 'number', 'description' => "Offer amount, in the item's own currency (see the item's `currency` field)"],
                     ],
                     'required' => ['item_id', 'email', 'amount'],
                 ],
             ],
             [
                 'name' => 'get_site_info',
-                'description' => 'Get site metadata: title, tagline, currency, and offer rules.',
+                'description' => 'Get site metadata: title, tagline, default_currency, and offer rules. `default_currency` is only the fallback for listings with no currency of their own — read each item\'s `currency` field instead.',
                 'inputSchema' => ['type' => 'object', 'properties' => []],
             ],
         ]]);
@@ -107,7 +107,7 @@ switch ($method) {
                         'id' => $item['id'],
                         'title' => $item['title'],
                         'price' => (float)$item['price'],
-                        'currency' => CURRENCY,
+                        'currency' => item_currency($item),
                         'tags' => $tags,
                         'offer_count' => count_offers_for_item($item['id']),
                     ];
@@ -140,7 +140,7 @@ switch ($method) {
                     'title' => $item['title'],
                     'description' => $item['description'],
                     'price' => (float)$item['price'],
-                    'currency' => CURRENCY,
+                    'currency' => item_currency($item),
                     'tags' => $tags,
                     'images' => $image_urls,
                     'offer_count' => count($offers),
@@ -183,7 +183,7 @@ switch ($method) {
                     'offer_id' => $offer_id,
                     'item' => $item['title'],
                     'amount' => $amount,
-                    'currency' => CURRENCY,
+                    'currency' => item_currency($item),
                     'meets_or_exceeds_price' => $above,
                     'message' => 'Offer submitted. Confirmation sent to ' . $email,
                 ], JSON_PRETTY_PRINT)]]]);
@@ -192,7 +192,8 @@ switch ($method) {
                 mcp_result($id, ['content' => [['type' => 'text', 'text' => json_encode([
                     'title' => SITE_TITLE,
                     'tagline' => SITE_TAGLINE,
-                    'currency' => CURRENCY,
+                    'default_currency' => CURRENCY,
+                    'currency_note' => "Each item carries its own currency; `default_currency` is only the site fallback. Always read an item's `currency` field.",
                     'url' => SITE_URL,
                     'offer_rules' => [
                         'The first highest offer has priority.',

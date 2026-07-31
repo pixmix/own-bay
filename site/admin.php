@@ -505,8 +505,9 @@ if ($view_offers_id) {
                     </div>
 
                     <div class="form-group">
-                        <label for="currency">Currency symbol</label>
+                        <label for="currency">Default currency symbol</label>
                         <input type="text" id="currency" name="currency" value="<?= htmlspecialchars($settings['currency'] ?? '€') ?>" placeholder="€" style="max-width:5rem">
+                        <small style="color:var(--muted)">Each listing carries its own currency. This is the starting value for an admin who has not posted an item yet.</small>
                     </div>
 
                     <h3 style="margin: 1.5rem 0 1rem; font-weight: 500;">Registration</h3>
@@ -569,7 +570,7 @@ if ($view_offers_id) {
         <?php elseif ($view_offers_item): ?>
             <section class="admin-section">
                 <h2>Offers for: <?= htmlspecialchars($view_offers_item['title']) ?>
-                    <span class="price-inline"><?= CURRENCY ?><?= number_format($view_offers_item['price'], 2) ?></span>
+                    <span class="price-inline"><?= htmlspecialchars(format_price($view_offers_item)) ?></span>
                 </h2>
                 <a href="admin.php" class="back-link">&larr; Back to items</a>
 
@@ -592,7 +593,7 @@ if ($view_offers_id) {
                                 <?php $is_winner = !$winner_marked && $offer['status'] === 'pending'; $winner_marked = $winner_marked || $is_winner; ?>
                                 <tr class="<?= $is_winner ? 'offer-winner' : '' ?> <?= $offer['amount'] >= $view_offers_item['price'] ? 'offer-above-price' : 'offer-below-price' ?>">
                                     <td><?= htmlspecialchars($offer['id']) ?></td>
-                                    <td class="offer-amount"><?= CURRENCY ?><?= number_format($offer['amount'], 2) ?>
+                                    <td class="offer-amount"><?= htmlspecialchars(format_price($view_offers_item, (float)$offer['amount'])) ?>
                                         <?php if ($is_winner): ?>
                                             <span class="badge badge-winner">Winner</span>
                                         <?php elseif ($offer['amount'] >= $view_offers_item['price']): ?>
@@ -631,8 +632,13 @@ if ($view_offers_id) {
                             <input type="text" id="title" name="title" required value="<?= htmlspecialchars($edit_item['title'] ?? '') ?>">
                         </div>
                         <div class="form-group flex-1">
-                            <label for="price">Price (<?= CURRENCY ?>)</label>
+                            <label for="price">Price</label>
                             <input type="number" id="price" name="price" required min="0.01" step="0.01" value="<?= htmlspecialchars($edit_item['price'] ?? '') ?>">
+                        </div>
+                        <div class="form-group" style="flex:0 0 6rem">
+                            <label for="item_currency">Currency</label>
+                            <input type="text" id="item_currency" name="currency" required maxlength="8" placeholder="€"
+                                   value="<?= htmlspecialchars(($edit_item['currency'] ?? '') ?: default_currency_for_user($current_user)) ?>">
                         </div>
                     </div>
 
@@ -858,7 +864,7 @@ if ($view_offers_id) {
                                 </div>
                                 <div class="admin-item-info">
                                     <h3><?= htmlspecialchars($item['title']) ?></h3>
-                                    <span class="price-inline"><?= CURRENCY ?><?= number_format($item['price'], 2) ?></span>
+                                    <span class="price-inline"><?= htmlspecialchars(format_price($item)) ?></span>
                                     <span class="status-badge status-<?= $item['status'] ?>"><?= $item['status'] ?></span>
                                     <?php if ($offer_count > 0): ?>
                                         <span class="offer-badge"><?= $offer_count ?> offer<?= $offer_count > 1 ? 's' : '' ?></span>
