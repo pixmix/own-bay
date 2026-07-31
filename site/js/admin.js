@@ -651,3 +651,62 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
 });
+
+// ── Geolocation for the item form ───────────────────────────────────
+// Deliberately a SEPARATE DOMContentLoaded listener: the handler above returns
+// early when the image-editor elements are absent, which has previously killed
+// unrelated code appended to its end. Keeping this independent means it runs on
+// every admin page that has the field.
+document.addEventListener('DOMContentLoaded', function () {
+    var btn = document.getElementById('geolocate-btn');
+    var latEl = document.getElementById('latitude');
+    var lonEl = document.getElementById('longitude');
+    var precEl = document.getElementById('location_precision');
+    var msg = document.getElementById('geolocate-msg');
+    if (!btn || !latEl || !lonEl) return;
+
+    function say(text, isError) {
+        if (!msg) return;
+        msg.textContent = text;
+        msg.style.display = text ? 'block' : 'none';
+        msg.style.color = isError ? 'var(--danger, #c0392b)' : 'var(--muted)';
+    }
+
+    if (!navigator.geolocation) {
+        btn.disabled = true;
+        btn.title = 'This browser does not expose a geolocation API';
+        return;
+    }
+
+    btn.addEventListener('click', function () {
+        var original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Locating…';
+        say('');
+
+        navigator.geolocation.getCurrentPosition(
+            function (pos) {
+                // Store full precision; the published value is rounded server-side
+                // to whatever precision the seller picked.
+                latEl.value = pos.coords.latitude.toFixed(6);
+                lonEl.value = pos.coords.longitude.toFixed(6);
+                // Only nudge the precision away from "no location" — never
+                // overwrite a choice the admin has already made.
+                if (precEl && precEl.value === 'none') precEl.value = '100m';
+                btn.disabled = false;
+                btn.textContent = original;
+                say('Location filled in. Adjust the precision or edit by hand if you prefer.');
+            },
+            function (err) {
+                btn.disabled = false;
+                btn.textContent = original;
+                var reason = 'Could not get your location.';
+                if (err && err.code === 1) reason = 'Permission denied — enter coordinates by hand instead.';
+                else if (err && err.code === 2) reason = 'Position unavailable — enter coordinates by hand instead.';
+                else if (err && err.code === 3) reason = 'Timed out — try again, or enter coordinates by hand.';
+                say(reason, true);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+        );
+    });
+});

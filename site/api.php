@@ -342,6 +342,18 @@ switch ($action) {
         $description = trim($_POST['description'] ?? '');
         $price = floatval($_POST['price'] ?? 0);
         $currency = trim($_POST['currency'] ?? '') ?: default_currency_for_user($user);
+
+        // Location: the precision the admin picked only stands if usable
+        // coordinates actually came with it — an empty or malformed pair
+        // resolves to 'none' rather than silently publishing a stale position.
+        $lat = parse_coord($_POST['latitude']  ?? null, 90);
+        $lon = parse_coord($_POST['longitude'] ?? null, 180);
+        $precision = normalise_precision($_POST['location_precision'] ?? 'none');
+        if ($lat === null || $lon === null) {
+            $lat = $lon = null;
+            $precision = 'none';
+        }
+
         $tags_raw = trim($_POST['tags'] ?? '');
         $tags = $tags_raw ? array_values(array_unique(array_filter(array_map('trim', explode(',', $tags_raw))))) : [];
         $slot_alts = $_POST['slot_alts'] ?? [];
@@ -406,15 +418,24 @@ switch ($action) {
         while (count($image_alts) < count($new_images)) $image_alts[] = '';
 
         if ($is_new) {
-            $db->prepare('INSERT INTO items (id, user_id, title, description, price, currency, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-               ->execute([$id, $user['id'], $title, $description, $price, $currency, 'available', date('c')]);
+            $db->prepare('INSERT INTO items (id, user_id, title, description, price, currency, latitude, longitude, location_precision, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+               ->execute([$id, $user['id'], $title, $description, $price, $currency, $lat, $lon, $precision, 'available', date('c')]);
         } else {
-            $db->prepare('UPDATE items SET title = ?, description = ?, price = ?, currency = ? WHERE id = ?')
-               ->execute([$title, $description, $price, $currency, $id]);
+            $db->prepare('UPDATE items SET title = ?, description = ?, price = ?, currency = ?, latitude = ?, longitude = ?, location_precision = ? WHERE id = ?')
+               ->execute([$title, $description, $price, $currency, $lat, $lon, $precision, $id]);
         }
 
         // Remember this admin's currency so it pre-fills their next listing.
         $db->prepare('UPDATE users SET last_currency = ? WHERE id = ?')->execute([$currency, $user['id']]);
+
+        // Remember the location too — including one typed by hand, which is why
+        // this records whatever was saved rather than only geolocated values.
+        // A listing saved with no location leaves the previous default intact,
+        // so clearing one item does not wipe the admin's remembered position.
+        if ($lat !== null && $lon !== null) {
+            $db->prepare('UPDATE users SET last_latitude = ?, last_longitude = ?, last_location_precision = ? WHERE id = ?')
+               ->execute([$lat, $lon, $precision, $user['id']]);
+        }
 
         save_item_tags($id, $tags);
         save_item_images($id, $new_images, $image_alts);

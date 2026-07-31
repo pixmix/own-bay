@@ -1087,3 +1087,56 @@ footer {
     background: var(--accent-light);
     color: var(--accent);
 }
+
+/* ── Item location ────────────────────────────────────────────────── */
+.item-location {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    background: var(--bg-alt, #f7f7f7);
+    border-radius: 6px;
+}
+.item-location .location-label {
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.item-location .coords {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.95rem;
+    padding: 0.15rem 0.4rem;
+    background: #fff;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 4px;
+    user-select: all;            /* one click selects the whole pair */
+}
+.item-location .btn-copy {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+}
+.item-location .btn-copy:hover { background: var(--bg-alt, #f0f0f0); }
+.item-location .geo-link { font-size: 0.85rem; }
+.item-location .location-note {
+    flex-basis: 100%;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+/* Admin item form — location row */
+.location-group .location-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+.location-group .location-row select { max-width: 11rem; }
+.location-group .location-row input[type="text"] { max-width: 10rem; }

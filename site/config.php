@@ -79,6 +79,24 @@ function schema_migrations(): array {
             $stmt = $db->prepare("UPDATE items SET currency = ? WHERE currency = ''");
             $stmt->execute([$current]);
         },
+
+        // 2 — per-item location + the admin's last-used location and precision
+        function (PDO $db): void {
+            foreach ([
+                ['items', 'latitude',           "REAL"],
+                ['items', 'longitude',          "REAL"],
+                ['items', 'location_precision', "TEXT NOT NULL DEFAULT 'none'"],
+                ['users', 'last_latitude',      "REAL"],
+                ['users', 'last_longitude',     "REAL"],
+                ['users', 'last_location_precision', "TEXT NOT NULL DEFAULT 'none'"],
+            ] as [$table, $col, $type]) {
+                if (!column_exists($db, $table, $col)) {
+                    $db->exec("ALTER TABLE {$table} ADD COLUMN {$col} {$type}");
+                }
+            }
+            // Existing listings have no location; 'none' is already their
+            // default, so there is nothing to backfill.
+        },
     ];
 }
 
@@ -121,7 +139,10 @@ function create_schema(PDO $db): void {
             reset_expires_at TEXT,
             created_at TEXT NOT NULL DEFAULT (strftime(\'%Y-%m-%dT%H:%M:%S+00:00\',\'now\')),
             last_login_at TEXT,
-            last_currency TEXT NOT NULL DEFAULT \'\'
+            last_currency TEXT NOT NULL DEFAULT \'\',
+            last_latitude REAL,
+            last_longitude REAL,
+            last_location_precision TEXT NOT NULL DEFAULT \'none\'
         );
         CREATE TABLE IF NOT EXISTS items (
             id TEXT PRIMARY KEY,
@@ -130,6 +151,9 @@ function create_schema(PDO $db): void {
             description TEXT NOT NULL DEFAULT \'\',
             price REAL NOT NULL,
             currency TEXT NOT NULL DEFAULT \'\',
+            latitude REAL,
+            longitude REAL,
+            location_precision TEXT NOT NULL DEFAULT \'none\',
             status TEXT NOT NULL DEFAULT \'available\',
             created_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -496,6 +520,73 @@ function format_price(array $item, ?float $amount = null): string {
 function default_currency_for_user(?array $user): string {
     $last = trim((string)($user['last_currency'] ?? ''));
     return $last !== '' ? $last : CURRENCY;
+}
+
+// ── Location ────────────────────────────────────────────────────────
+//
+// Coordinates are stored at full precision but only ever PUBLISHED rounded to
+// the precision the seller chose, because an item's location is usually their
+// home. Decimal degrees are the universal interchange format — every map app
+// accepts a pasted "lat, lon" — so the site deliberately ships no map of its
+// own and links to no particular provider.
+
+const LOCATION_PRECISIONS = [
+    'none' => ['label' => 'No location',      'decimals' => null],
+    '100m' => ['label' => 'Approx. 100 m',    'decimals' => 3],
+    '1km'  => ['label' => 'Approx. 1 km',     'decimals' => 2],
+];
+
+function normalise_precision(?string $p): string {
+    return isset(LOCATION_PRECISIONS[(string)$p]) ? (string)$p : 'none';
+}
+
+// Accepts anything the admin might paste — "22.5431", " -0.1276 " — and returns
+// a float, or null when the value is absent or out of range.
+function parse_coord($value, float $limit): ?float {
+    if ($value === null || trim((string)$value) === '') return null;
+    $v = str_replace(',', '.', trim((string)$value));   // tolerate decimal commas
+    if (!is_numeric($v)) return null;
+    $f = (float)$v;
+    return (abs($f) <= $limit) ? $f : null;
+}
+
+// Returns ['lat','lon','precision','decimals'] with lat/lon already ROUNDED for
+// publication, or null when this item has no shareable location.
+function item_location(array $item): ?array {
+    $precision = normalise_precision($item['location_precision'] ?? 'none');
+    if ($precision === 'none') return null;
+    if (!isset($item['latitude'], $item['longitude'])) return null;
+    if ($item['latitude'] === null || $item['longitude'] === null) return null;
+
+    $d = LOCATION_PRECISIONS[$precision]['decimals'];
+    return [
+        'lat'       => round((float)$item['latitude'], $d),
+        'lon'       => round((float)$item['longitude'], $d),
+        'precision' => $precision,
+        'decimals'  => $d,
+    ];
+}
+
+// "22.543, 114.058" — the string a buyer pastes into whichever map they use.
+function format_coords(array $loc): string {
+    return number_format($loc['lat'], $loc['decimals'], '.', '')
+         . ', ' . number_format($loc['lon'], $loc['decimals'], '.', '');
+}
+
+// RFC 5870. Opens the device's own default map app rather than picking one.
+function geo_uri(array $loc): string {
+    return 'geo:' . number_format($loc['lat'], $loc['decimals'], '.', '')
+         . ',' . number_format($loc['lon'], $loc['decimals'], '.', '');
+}
+
+// What to pre-fill on a new listing: this admin's last-used location and
+// precision. A brand-new admin gets nothing and a precision of 'none'.
+function default_location_for_user(?array $user): array {
+    return [
+        'lat'       => $user['last_latitude']  ?? null,
+        'lon'       => $user['last_longitude'] ?? null,
+        'precision' => normalise_precision($user['last_location_precision'] ?? 'none'),
+    ];
 }
 
 // ── Offers ──────────────────────────────────────────────────────────

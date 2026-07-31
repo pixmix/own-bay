@@ -90,6 +90,20 @@ $error = $_GET['error'] ?? '';
                     <?= parse_markdown($item['description']) ?>
                 </div>
 
+                <?php $loc = item_location($item); ?>
+                <?php if ($loc): $coords = format_coords($loc); ?>
+                    <div class="item-location">
+                        <span class="location-label">Location</span>
+                        <code class="coords" id="item-coords"><?= htmlspecialchars($coords) ?></code>
+                        <button type="button" class="btn-copy" data-coords="<?= htmlspecialchars($coords) ?>">Copy</button>
+                        <a class="geo-link" href="<?= htmlspecialchars(geo_uri($loc)) ?>">Open in maps</a>
+                        <small class="location-note">
+                            <?= htmlspecialchars(LOCATION_PRECISIONS[$loc['precision']]['label']) ?>.
+                            Paste these coordinates into whichever map you use.
+                        </small>
+                    </div>
+                <?php endif; ?>
+
                 <div class="offer-status">
                     <?php if ($offer_count > 0): ?>
                         <p class="offer-count"><?= $offer_count ?> offer<?= $offer_count > 1 ? 's' : '' ?> received</p>
@@ -172,5 +186,38 @@ $error = $_GET['error'] ?? '';
             <p class="footer-credit">Design by MGZ Consulting LLC</p>
         </div>
     </footer>
+<script>
+// Copy-to-clipboard for the coordinates. The site links to no particular map
+// provider on purpose — different regions and users prefer different maps — so
+// pasting is the universal path and this just removes the friction.
+document.addEventListener('DOMContentLoaded', function () {
+    var btn = document.querySelector('.btn-copy');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+        var text = btn.getAttribute('data-coords');
+        function done() {
+            var original = btn.textContent;
+            btn.textContent = 'Copied';
+            setTimeout(function () { btn.textContent = original; }, 1500);
+        }
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(done, fallback);
+        } else {
+            fallback();
+        }
+        function fallback() {
+            // execCommand is deprecated but is the only path on plain HTTP.
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); done(); } catch (e) { /* leave text selectable */ }
+            document.body.removeChild(ta);
+        }
+    });
+});
+</script>
 </body>
 </html>

@@ -642,6 +642,40 @@ if ($view_offers_id) {
                         </div>
                     </div>
 
+                    <?php
+                        $loc_default = default_location_for_user($current_user);
+                        $loc_lat = $edit_item['latitude']  ?? $loc_default['lat'];
+                        $loc_lon = $edit_item['longitude'] ?? $loc_default['lon'];
+                        $loc_prec = normalise_precision(
+                            $edit_item['location_precision'] ?? $loc_default['precision']
+                        );
+                    ?>
+                    <div class="form-group location-group">
+                        <label for="location_precision">Location</label>
+                        <div class="location-row">
+                            <select id="location_precision" name="location_precision">
+                                <?php foreach (LOCATION_PRECISIONS as $key => $meta): ?>
+                                    <option value="<?= $key ?>" <?= $loc_prec === $key ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($meta['label']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <input type="text" id="latitude" name="latitude" placeholder="latitude"
+                                   inputmode="decimal" autocomplete="off"
+                                   value="<?= $loc_lat === null ? '' : htmlspecialchars((string)$loc_lat) ?>">
+                            <input type="text" id="longitude" name="longitude" placeholder="longitude"
+                                   inputmode="decimal" autocomplete="off"
+                                   value="<?= $loc_lon === null ? '' : htmlspecialchars((string)$loc_lon) ?>">
+                            <button type="button" class="btn btn-secondary" id="geolocate-btn">Use my location</button>
+                        </div>
+                        <small style="color:var(--muted)">
+                            Buyers see the coordinates rounded to the precision you pick, never more exactly.
+                            Paste coordinates from any map, or edit them by hand — whatever you save becomes
+                            the default for your next listing. Leave them empty for no location.
+                        </small>
+                        <small id="geolocate-msg" style="display:none"></small>
+                    </div>
+
                     <div class="form-group" style="position:relative">
                         <label>Tags</label>
                         <input type="hidden" id="tags" name="tags" value="<?= htmlspecialchars(implode(', ', get_item_tags($edit_item ?? []))) ?>">

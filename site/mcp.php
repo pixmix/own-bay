@@ -23,6 +23,22 @@ function mcp_error($id, int $code, string $message): void {
     exit;
 }
 
+// Location for API consumers: decimal degrees already rounded to the precision
+// the seller chose, plus that precision so a client can say how exact it is.
+// null when the listing has no shareable location. No map URL is emitted on
+// purpose — the caller picks its own map.
+function mcp_location(array $item): ?array {
+    $loc = item_location($item);
+    if (!$loc) return null;
+    return [
+        'latitude'  => $loc['lat'],
+        'longitude' => $loc['lon'],
+        'precision' => $loc['precision'],
+        'coordinates' => format_coords($loc),
+        'geo_uri'   => geo_uri($loc),
+    ];
+}
+
 switch ($method) {
     case 'initialize':
         mcp_result($id, [
@@ -38,7 +54,7 @@ switch ($method) {
         mcp_result($id, ['tools' => [
             [
                 'name' => 'list_items',
-                'description' => 'List all available items for sale. Returns title, price, currency, tags, and item ID for each. Each item carries its own currency — do not assume a single site-wide one.',
+                'description' => 'List all available items for sale. Returns title, price, currency, location, tags, and item ID for each. Each item carries its own currency — do not assume a single site-wide one.',
                 'inputSchema' => [
                     'type' => 'object',
                     'properties' => [
@@ -50,7 +66,7 @@ switch ($method) {
             ],
             [
                 'name' => 'get_item',
-                'description' => 'Get full details for a specific item including description, images, tags, offer count, and whether an offer at or above the listed price exists.',
+                'description' => 'Get full details for a specific item including description, images, location, tags, offer count, and whether an offer at or above the listed price exists.',
                 'inputSchema' => [
                     'type' => 'object',
                     'properties' => [
@@ -108,6 +124,7 @@ switch ($method) {
                         'title' => $item['title'],
                         'price' => (float)$item['price'],
                         'currency' => item_currency($item),
+                        'location' => mcp_location($item),
                         'tags' => $tags,
                         'offer_count' => count_offers_for_item($item['id']),
                     ];
@@ -141,6 +158,7 @@ switch ($method) {
                     'description' => $item['description'],
                     'price' => (float)$item['price'],
                     'currency' => item_currency($item),
+                    'location' => mcp_location($item),
                     'tags' => $tags,
                     'images' => $image_urls,
                     'offer_count' => count($offers),
