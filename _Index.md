@@ -13,7 +13,8 @@ decisions) lives outside this vault at
 - *Deploy SOP* — how a change reaches production, plus the pre-flight checks.
   Kept out of this repo: it names production accounts and a co-tenant service on
   the same host. Local-only note, gitignored.
-- [[Currency feature]] — open design decision: per-site → per-post currency
+- [[Currency feature]] — per-site → per-item currency (deployed)
+- [[Location feature]] — per-item coordinates with seller-chosen precision (built, not deployed)
 
 ## Source documents
 
