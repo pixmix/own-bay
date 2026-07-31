@@ -14,7 +14,7 @@ decisions) lives outside this vault at
   Kept out of this repo: it names production accounts and a co-tenant service on
   the same host. Local-only note, gitignored.
 - [[Currency feature]] — per-site → per-item currency (deployed)
-- [[Location feature]] — per-item coordinates with seller-chosen precision (built, not deployed)
+- [[Location feature]] — per-item coordinates with seller-chosen precision (deployed)
 
 ## Source documents
 

@@ -1,6 +1,6 @@
 # Location feature
 
-**Status: built and verified locally 2026-07-31. Not yet deployed.**
+**Status: deployed to production and verified 2026-07-31.**
 
 Listings can carry coordinates. The shape deliberately mirrors
 [[Currency feature]]: the value belongs to the *item*, and the admin's last
@@ -59,7 +59,17 @@ choice becomes the default for their next listing.
 - Migration 2 — `items.latitude/longitude/location_precision` plus the matching
   `users.last_*`; existing listings default to `none`, no backfill needed.
 
-## Verified
+## Deployed
+
+Live on 2h.mgzllc.com since 2026-07-31 (migration 2). Verified against the live
+system, not the deploy log: all **nine** files byte-size verified, `admin.php`
+md5-identical to local, database `integrity ok` with `user_version` 1 → 2, both
+column sets present, the single listing intact (price, currency and 15 tags
+unchanged, `location_precision` defaulted to `none`), 0 offers / 2 users
+unchanged. Storefront and item page 200, admin redirects to login, and
+`css/style.css` + `js/admin.js` confirmed served with the new rules and handler.
+
+## Verified locally before shipping
 
 Against the dev database at `user_version 1` (production's shape):
 
