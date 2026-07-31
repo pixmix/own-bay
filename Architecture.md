@@ -28,8 +28,14 @@ Tables created in `create_schema()` (`config.php:53`): `users`, `items`,
 `item_tags`, `item_images`, `offers`, `settings`, `login_attempts`.
 
 - `items` — `id` (TEXT PK), `user_id` FK → `users`, `title`, `description`,
-  `price` (REAL), `status`, `created_at`. **No currency column** — price is a
-  bare number; the symbol is global. See [[Currency feature]].
+  `price` (REAL), `currency`, `latitude`, `longitude`, `location_precision`,
+  `status`, `created_at`. Currency and location both belong to the *item*, not
+  the site — see [[Currency feature]] and [[Location feature]]. Coordinates are
+  stored at full precision and only ever published rounded to
+  `location_precision` (`none` / `100m` / `1km`).
+- `users` — also carries `last_currency`, `last_latitude`, `last_longitude` and
+  `last_location_precision`: the admin's most recent choices, used to pre-fill
+  their next listing.
 - `offers` — belongs to an item, stores `amount` + `status` only. Buyer email is
   never persisted (privacy by design); it is used in-request to send the
   confirmation and then discarded.
@@ -37,24 +43,36 @@ Tables created in `create_schema()` (`config.php:53`): `users`, `items`,
   into constants (`SITE_TITLE`, `CURRENCY`, `OWNER_NAME`, …) near the bottom of
   `config.php`.
 
-## Schema evolution — a real gap
+## Schema evolution
 
-`init_db()` (`config.php:38`) calls `create_schema()` **only when the database
-file does not exist**:
+`create_schema()` describes the current schema and runs **only on a brand-new
+database**. Existing databases are brought up to it by `schema_migrations()` —
+an ordinal list of steps applied by `run_migrations()` from `init_db()` on every
+request, tracked in SQLite's `PRAGMA user_version`.
 
 ```php
 $exists = file_exists(DB_FILE);
-$db = get_db();
-if (!$exists) { create_schema($db); … }
+if (!$exists) {
+    create_schema($db);
+    $db->exec('PRAGMA user_version = ' . count(schema_migrations()));  // baseline
+} else {
+    run_migrations($db);
+}
 ```
 
-There is **no versioned migration mechanism** — no `PRAGMA user_version`, no
-migrations table, no `ALTER TABLE` anywhere. `CREATE TABLE IF NOT EXISTS` adds
-new *tables* on a fresh DB only, and never adds a *column* to an existing one.
+Rules that matter:
 
-Consequence: any schema change (such as adding a currency column) will not reach
-the production database on deploy. This must be solved before the first schema
-change ships — see [[Currency feature]].
+- **Append steps; never reorder or remove one.** The array index *is* the
+  version. Migration 1 added per-item currency, migration 2 per-item location.
+- Each step runs in a transaction and rolls back on failure.
+- A fresh database is baselined at the latest version, so steps are not replayed
+  against a schema that already has them.
+- Guard DDL with `column_exists()` so a partially-applied migration recovers.
+- **There is no down-migration.** Back up the database before shipping one.
+
+This did not exist before 2026-07-30: `init_db()` only called `create_schema()`
+when the file was absent, so a new column reached fresh installs and never an
+existing one. Any schema-dependent feature would have deployed broken.
 
 ## Auth and roles
 

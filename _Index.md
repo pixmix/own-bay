@@ -18,9 +18,8 @@ decisions) lives outside this vault at
 
 ## Source documents
 
-- `README.md` — public GitHub readme. **Stale**: still describes the pre-2026-05-14
-  JSON flat-file era ("No database required", `--with-items`/`--password` flags).
-  See [[Architecture]] for what the code actually does.
+- `README.md` — public GitHub readme. Brought current 2026-07-31 (SQLite, seller
+  accounts, per-item currency and location, MCP server, `--with-db`).
 - `LICENCE` — GNU GPL v3
 
 ## Conventions
