@@ -16,6 +16,11 @@ decisions) lives outside this vault at
 - [[Currency feature]] — per-site → per-item currency (deployed)
 - [[Location feature]] — per-item coordinates with seller-chosen precision (deployed)
 
+## Ideas
+
+- [[WeChat distribution]] — sharing listings into WeChat by geolocation proximity;
+  feasibility of WeCom vs mini-program vs Service Account. Idea only, nothing built.
+
 ## Source documents
 
 - `README.md` — public GitHub readme. Brought current 2026-07-31 (SQLite, seller
