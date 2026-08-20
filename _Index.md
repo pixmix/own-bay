@@ -13,6 +13,7 @@ decisions) lives outside this vault at
 - *Deploy SOP* — how a change reaches production, plus the pre-flight checks.
   Kept out of this repo: it names production accounts and a co-tenant service on
   the same host. Local-only note, gitignored.
+- *Contacts* — who this project writes to and how, per the mesh standard set 2026-08-20 (bbs n-447). Kept out of this repo for the same reason as the Deploy SOP: it names counterparties and the co-tenant service. Local-only note, gitignored. Outbound mail goes through `automail` and nothing else.
 - [[Currency feature]] — per-site → per-item currency (deployed)
 - [[Location feature]] — per-item coordinates with seller-chosen precision (deployed)
 

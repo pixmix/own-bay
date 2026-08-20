@@ -45,3 +45,7 @@ prod-backup-*/
 # accounts and a co-tenant service; kept local, out of the public repo.
 Deploy SOP.md
 ftp-deploy.sh
+
+# Project contacts (mesh standard, n-447) — names counterparties and a
+# co-tenant service; same reasoning as the Deploy SOP, kept local.
+Contacts.md
